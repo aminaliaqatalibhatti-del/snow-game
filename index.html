@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Snow Mountain — Diamond Hunter</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0a0e1a;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;}
+canvas{display:block;}
+/* HUD */
+#hud{position:fixed;top:0;left:0;width:100%;padding:16px 24px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:10;}
+.hud-box{background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:10px 16px;backdrop-filter:blur(8px);}
+.hud-label{font-size:11px;color:#88aacc;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
+.hud-val{font-size:22px;font-weight:700;color:#fff;}
+#hp-bar-bg{width:160px;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;margin-top:6px;}
+#hp-bar{height:100%;background:linear-gradient(90deg,#ff4444,#ff8800);border-radius:4px;transition:width 0.3s;}
+#sp-bar-bg{width:140px;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;margin-top:4px;}
+#sp-bar{height:100%;background:linear-gradient(90deg,#00c8ff,#0055ff);border-radius:3px;}
+/* CROSSHAIR */
+#xhair{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:18px;height:18px;pointer-events:none;z-index:10;}
+#xhair::before,#xhair::after{content:'';position:absolute;background:rgba(255,255,255,0.7);}
+#xhair::before{width:2px;height:100%;left:50%;transform:translateX(-50%);}
+#xhair::after{width:100%;height:2px;top:50%;transform:translateY(-50%);}
+/* SCREENS */
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:20;background:rgba(0,0,0,0.88);backdrop-filter:blur(12px);}
+.screen h1{font-size:56px;font-weight:800;margin-bottom:12px;}
+.screen p{font-size:18px;color:#aaa;margin:6px 0;}
+.btn{margin-top:24px;padding:14px 44px;font-size:18px;font-weight:700;border:none;border-radius:12px;cursor:pointer;transition:all 0.3s;}
+.btn-cyan{background:linear-gradient(135deg,#00c8ff,#0055ff);color:#fff;}
+.btn-cyan:hover{transform:translateY(-3px);box-shadow:0 0 30px rgba(0,200,255,0.4);}
+.btn-red{background:linear-gradient(135deg,#ff4444,#cc0000);color:#fff;}
+.btn-red:hover{transform:translateY(-3px);}
+.btn-green{background:linear-gradient(135deg,#00ff88,#00aa44);color:#000;}
+.btn-green:hover{transform:translateY(-3px);}
+/* SNIPER WARNING */
+#warn{position:fixed;inset:0;pointer-events:none;z-index:15;border:4px solid transparent;transition:border-color 0.2s;}
+#warn.active{border-color:rgba(255,0,0,0.6);animation:warnPulse 0.5s infinite;}
+@keyframes warnPulse{0%,100%{border-color:rgba(255,0,0,0.3);}50%{border-color:rgba(255,0,0,0.9);}}
+/* CONTROLS HINT */
+#controls-hint{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  color:rgba(255,255,255,0.4);font-size:12px;pointer-events:none;z-index:10;text-align:center;}
+/* DIAMOND COLLECT FLASH */
+#collect-flash{position:fixed;inset:0;background:rgba(0,200,255,0.15);pointer-events:none;z-index:14;opacity:0;transition:opacity 0.3s;}
+/* HIT FLASH */
+#hit-flash{position:fixed;inset:0;background:rgba(255,0,0,0.3);pointer-events:none;z-index:14;opacity:0;transition:opacity 0.3s;}
+</style>
+</head>
+<body>
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-box">
+    <div class="hud-label">Health</div>
+    <div id="hp-bar-bg"><div id="hp-bar" style="width:100%"></div></div>
+    <div class="hud-val" id="hp-val">100</div>
+  </div>
+  <div class="hud-box" style="text-align:center;">
+    <div class="hud-label">Diamonds</div>
+    <div class="hud-val" id="diamond-val">💎 0 / 5</div>
+    <div class="hud-label" style="margin-top:6px;" id="timer-val">⏱ 0:00</div>
+  </div>
+  <div class="hud-box">
+    <div class="hud-label">Sprint</div>
+    <div id="sp-bar-bg"><div id="sp-bar" style="width:100%"></div></div>
+    <div class="hud-val" id="sp-val">●●●●●</div>
+  </div>
+</div>
+<div id="xhair"></div>
+<div id="warn"></div>
+<div id="collect-flash"></div>
+<div id="hit-flash"></div>
+<div id="controls-hint">WASD — Move &nbsp;|&nbsp; Shift — Sprint &nbsp;|&nbsp; Space — Jump &nbsp;|&nbsp; Mouse — Look &nbsp;|&nbsp; ESC — Pause</div>
+
+<!-- START SCREEN -->
+<div class="screen" id="start-screen">
+  <h1 style="color:#00c8ff;">❄️ Diamond Hunter</h1>
+  <p>Explore the snow mountains and collect <b style="color:#00c8ff;">5 glowing diamonds</b></p>
+  <p>⚠️ Beware of sniper energy shots from the mountains!</p>
+  <p style="margin-top:8px;color:#666;font-size:14px;">WASD — Move &nbsp;|&nbsp; Shift — Sprint &nbsp;|&nbsp; Space — Jump &nbsp;|&nbsp; Mouse — Look</p>
+  <button class="btn btn-cyan" onclick="startGame()">▶ Start Game</button>
+</div>
+
+<!-- PAUSE SCREEN -->
+<div class="screen" id="pause-screen" style="display:none;">
+  <h1 style="color:#aaa;">⏸ Paused</h1>
+  <p>Game is paused</p>
+  <button class="btn btn-cyan" onclick="resumeGame()" style="margin-top:20px;">▶ Resume</button>
+  <button class="btn btn-red" onclick="restartGame()" style="margin-top:12px;">↺ Restart</button>
+</div>
+
+<!-- GAME OVER -->
+<div class="screen" id="gameover-screen" style="display:none;">
+  <h1 style="color:#ff4444;">💀 Game Over</h1>
+  <p id="go-msg">You were hit by a sniper!</p>
+  <p id="go-stats" style="color:#666;margin-top:8px;"></p>
+  <button class="btn btn-red" onclick="restartGame()" style="margin-top:24px;">↺ Try Again</button>
+</div>
+
+<!-- VICTORY -->
+<div class="screen" id="victory-screen" style="display:none;">
+  <h1 style="color:#00ff88;">🏆 Victory!</h1>
+  <p>You collected all 5 diamonds!</p>
+  <p id="win-time" style="color:#00c8ff;font-size:22px;margin-top:8px;"></p>
+  <button class="btn btn-green" onclick="restartGame()" style="margin-top:24px;">▶ Play Again</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ═══════════════ SCENE ═══════════════
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0a0e1a);
+scene.fog=new THREE.FogExp2(0x8ab4d4,0.007);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,0.1,800);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=0.85;
+document.body.appendChild(renderer.domElement);
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+// ═══════════════ NOISE ═══════════════
+function fade(t){return t*t*t*(t*(t*6-15)+10);}
+function lerp(a,b,t){return a+t*(b-a);}
+function grad(h,x,y){const v=h<2?[x,y]:h<4?[y,x]:[-x,-y];return(h&1?-v[0]:v[0])+(h&2?-v[1]:v[1]);}
+const _p=new Uint8Array(512);const _pp=new Uint8Array(256);
+for(let i=0;i<256;i++)_pp[i]=i;
+for(let i=255;i>0;i--){const j=Math.floor(Math.random()*(i+1));[_pp[i],_pp[j]]=[_pp[j],_pp[i]];}
+for(let i=0;i<512;i++)_p[i]=_pp[i&255];
+function noise2(x,y){const X=Math.floor(x)&255,Y=Math.floor(y)&255;x-=Math.floor(x);y-=Math.floor(y);const u=fade(x),v=fade(y);const a=_p[X]+Y,b=_p[X+1]+Y;return lerp(lerp(grad(_p[a],x,y),grad(_p[b],x-1,y),u),lerp(grad(_p[a+1],x,y-1),grad(_p[b+1],x-1,y-1),u),v);}
+function octNoise(x,y,o,p,l){let v=0,a=1,f=1,m=0;for(let i=0;i<o;i++){v+=noise2(x*f,y*f)*a;m+=a;a*=p;f*=l;}return v/m;}
+const W=300,D=300,SEG=180;
+
+// ═══════════════ TERRAIN ═══════════════
+const tGeo=new THREE.PlaneGeometry(W,D,SEG,SEG);
+tGeo.rotateX(-Math.PI/2);
+const tPos=tGeo.attributes.position;
+const tColors=[];
+const heightMap=[];
+for(let i=0;i<tPos.count;i++){
+  const x=tPos.getX(i),z=tPos.getZ(i);
+  const nx=x/W*3,nz=z/D*3;
+  let h=octNoise(nx+1.5,nz+1.5,8,0.55,2.1)*55+octNoise(nx*2+3,nz*2+3,4,0.6,2.5)*25;
+  h=h<5?h*0.3:h;
+  const dc=Math.sqrt((x/W)**2+(z/D)**2)*2;
+  if(dc<0.35)h=Math.max(h*0.1,-1);
+  tPos.setY(i,h);heightMap.push({x,z,h});
+  let r,g,b;
+  if(h>35){r=0.97;g=0.98;b=1.0;}
+  else if(h>22){r=0.87;g=0.91;b=0.97;}
+  else if(h>12){r=0.72;g=0.76;b=0.82;}
+  else if(h>4){r=0.45;g=0.48;b=0.52;}
+  else if(h>-0.5){r=0.55;g=0.72;b=0.88;}
+  else{r=0.4;g=0.55;b=0.75;}
+  tColors.push(r,g,b);
+}
+tGeo.setAttribute('color',new THREE.Float32BufferAttribute(tColors,3));
+tGeo.computeVertexNormals();
+const terrain=new THREE.Mesh(tGeo,new THREE.MeshLambertMaterial({vertexColors:true}));
+terrain.receiveShadow=true;scene.add(terrain);
+
+function getH(x,z){
+  let best=0,bd=9999;
+  heightMap.forEach(p=>{const d=(p.x-x)**2+(p.z-z)**2;if(d<bd){bd=d;best=p.h;}});
+  return best;
+}
+</script>
+
+<script>
+// ═══════════════ FEMALE EXPLORER CHARACTER ═══════════════
+function makeExplorer(){
+  const g=new THREE.Group();
+  const skin=0xf5c58a, jacket=0x1a3a5c, pants=0x2c4a2c, boots=0x3a2a1a, scarf=0xcc2244, hair=0x2a1a0a;
+
+  // Shadow blob
+  const shadowM=new THREE.Mesh(new THREE.CircleGeometry(0.55,12),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.3,depthWrite:false}));
+  shadowM.rotation.x=-Math.PI/2;shadowM.position.y=0.02;g.add(shadowM);
+
+  // LEGS
+  const legL=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.11,0.85,7),new THREE.MeshLambertMaterial({color:pants}));
+  legL.position.set(-0.17,0.42,0);g.add(legL);g.userData.legL=legL;
+  const legR=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.11,0.85,7),new THREE.MeshLambertMaterial({color:pants}));
+  legR.position.set(0.17,0.42,0);g.add(legR);g.userData.legR=legR;
+
+  // BOOTS
+  [-0.17,0.17].forEach(bx=>{
+    const boot=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.22,0.32),new THREE.MeshLambertMaterial({color:boots}));
+    boot.position.set(bx,0.11,0.04);g.add(boot);
+  });
+
+  // BODY (winter jacket)
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.72,0.38),new THREE.MeshLambertMaterial({color:jacket}));
+  body.position.y=1.2;g.add(body);
+
+  // JACKET collar
+  const collar=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.28,0.18,8),new THREE.MeshLambertMaterial({color:0x0a2040}));
+  collar.position.y=1.62;g.add(collar);
+
+  // SCARF
+  const scarfM=new THREE.Mesh(new THREE.TorusGeometry(0.22,0.07,6,10),new THREE.MeshLambertMaterial({color:scarf}));
+  scarfM.position.y=1.68;g.add(scarfM);
+
+  // ARMS
+  const armL=new THREE.Group();
+  const armLM=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.09,0.7,6),new THREE.MeshLambertMaterial({color:jacket}));
+  armLM.position.y=-0.35;armL.add(armLM);
+  const glovL=new THREE.Mesh(new THREE.SphereGeometry(0.1,6,6),new THREE.MeshLambertMaterial({color:0x1a1a1a}));
+  glovL.position.y=-0.72;armL.add(glovL);
+  armL.position.set(-0.42,1.52,0);g.add(armL);g.userData.armL=armL;
+
+  const armR=new THREE.Group();
+  const armRM=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.09,0.7,6),new THREE.MeshLambertMaterial({color:jacket}));
+  armRM.position.y=-0.35;armR.add(armRM);
+  const glovR=new THREE.Mesh(new THREE.SphereGeometry(0.1,6,6),new THREE.MeshLambertMaterial({color:0x1a1a1a}));
+  glovR.position.y=-0.72;armR.add(glovR);
+  armR.position.set(0.42,1.52,0);g.add(armR);g.userData.armR=armR;
+
+  // HEAD
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.24,10,10),new THREE.MeshLambertMaterial({color:skin}));
+  head.position.y=1.98;g.add(head);
+
+  // HAIR (long, dark)
+  const hairTop=new THREE.Mesh(new THREE.SphereGeometry(0.26,10,10,0,Math.PI*2,0,Math.PI/2),new THREE.MeshLambertMaterial({color:hair}));
+  hairTop.position.y=1.98;g.add(hairTop);
+  const hairBack=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.07,0.5,7),new THREE.MeshLambertMaterial({color:hair}));
+  hairBack.position.set(0,1.75,-0.18);hairBack.rotation.x=0.3;g.add(hairBack);
+
+  // WINTER HAT
+  const hat=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.26,0.28,8),new THREE.MeshLambertMaterial({color:0x8b0000}));
+  hat.position.y=2.24;g.add(hat);
+  const hatBrim=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,0.06,8),new THREE.MeshLambertMaterial({color:0x6a0000}));
+  hatBrim.position.y=2.12;g.add(hatBrim);
+  // Pompom
+  const pom=new THREE.Mesh(new THREE.SphereGeometry(0.1,6,6),new THREE.MeshLambertMaterial({color:0xffffff}));
+  pom.position.y=2.42;g.add(pom);
+
+  // FACE - eyes
+  [-0.09,0.09].forEach(ex=>{
+    const eye=new THREE.Mesh(new THREE.SphereGeometry(0.04,5,5),new THREE.MeshBasicMaterial({color:0x2a1800}));
+    eye.position.set(ex,1.99,0.22);g.add(eye);
+  });
+  // Nose
+  const nose=new THREE.Mesh(new THREE.SphereGeometry(0.025,4,4),new THREE.MeshLambertMaterial({color:0xe8aa70}));
+  nose.position.set(0,1.94,0.25);g.add(nose);
+
+  // BACKPACK
+  const pack=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.44,0.22),new THREE.MeshLambertMaterial({color:0x2a4a2a}));
+  pack.position.set(0,1.18,-0.26);g.add(pack);
+
+  g.castShadow=true;
+  g.traverse(c=>{if(c.isMesh){c.castShadow=true;}});
+  return g;
+}
+
+const explorer=makeExplorer();
+explorer.position.set(0,5,0);
+scene.add(explorer);
+
+// Player state
+const P={
+  x:0,y:5,z:0,
+  vx:0,vy:0,vz:0,
+  angle:0, // facing direction
+  camYaw:0, camPitch:0.3,
+  speed:0.12, sprintMult:2.2,
+  jumping:false, onGround:true,
+  hp:100, maxHp:100,
+  sprinting:false, staminaMax:100,
+  stamina:100,
+  walkTime:0
+};
+</script>
+
+<script>
+// ═══════════════ DIAMONDS ═══════════════
+const DIAMOND_COUNT=5;
+let diamonds=[], collectedCount=0;
+const diamondPositions=[
+  {x:30,z:-40},{x:-45,z:20},{x:60,z:30},{x:-20,z:-60},{x:50,z:-10}
+];
+function spawnDiamonds(){
+  diamonds.forEach(d=>scene.remove(d.mesh));
+  diamonds=[];collectedCount=0;
+  diamondPositions.forEach((pos,i)=>{
+    const h=getH(pos.x,pos.z)+1.5;
+    const g=new THREE.Group();
+    // Diamond gem
+    const gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.7,0),
+      new THREE.MeshPhongMaterial({color:0x00c8ff,emissive:0x004488,emissiveIntensity:0.8,shininess:200,transparent:true,opacity:0.9}));
+    gem.castShadow=true;g.add(gem);
+    // Glow ring
+    const ring=new THREE.Mesh(new THREE.RingGeometry(0.9,1.1,16),
+      new THREE.MeshBasicMaterial({color:0x00c8ff,side:THREE.DoubleSide,transparent:true,opacity:0.35}));
+    ring.rotation.x=-Math.PI/2;g.add(ring);
+    // Point light
+    const pl=new THREE.PointLight(0x00c8ff,1.5,8);g.add(pl);
+    g.position.set(pos.x,h,pos.z);
+    scene.add(g);
+    diamonds.push({mesh:g,x:pos.x,z:pos.z,h,collected:false,t:i*1.3});
+  });
+}
+
+// ═══════════════ ENVIRONMENT ═══════════════
+// Trees
+function makeTree(x,z,s){
+  const h=getH(x,z);if(h<5||h>32)return;
+  const g=new THREE.Group();
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.12*s,0.18*s,1.5*s,6),new THREE.MeshLambertMaterial({color:0x4a3728}));
+  trunk.position.y=0.75*s;g.add(trunk);
+  [2.0,1.5,1.0].forEach((ls,i)=>{
+    const cone=new THREE.Mesh(new THREE.ConeGeometry(ls*0.5*s,ls*0.9*s,7),new THREE.MeshLambertMaterial({color:[0x2d5a27,0x234a1e,0x1a3a16][i]}));
+    cone.position.y=(1.5+i*0.65)*s;cone.castShadow=true;g.add(cone);
+    const snow=new THREE.Mesh(new THREE.ConeGeometry(ls*0.3*s,ls*0.25*s,7),new THREE.MeshLambertMaterial({color:0xddeeff}));
+    snow.position.y=(1.5+i*0.65+0.45)*s;g.add(snow);
+  });
+  g.position.set(x,h,z);scene.add(g);
+}
+for(let i=0;i<100;i++) makeTree((Math.random()-0.5)*220,(Math.random()-0.5)*220,0.7+Math.random()*0.8);
+
+// Rocks
+for(let i=0;i<35;i++){
+  const x=(Math.random()-0.5)*230,z=(Math.random()-0.5)*230;
+  const h=getH(x,z);if(h<3||h>40)continue;
+  const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(0.6+Math.random()*1.2,0),
+    new THREE.MeshLambertMaterial({color:h>20?0xddeeff:0x667788}));
+  rock.position.set(x,h+0.3,z);rock.rotation.set(Math.random(),Math.random(),Math.random());
+  rock.castShadow=true;scene.add(rock);
+}
+
+// Snow particles
+const SNOW=6000;
+const snowGeo=new THREE.BufferGeometry();
+const sPos=new Float32Array(SNOW*3);
+const sVel=[];
+for(let i=0;i<SNOW;i++){
+  sPos[i*3]=(Math.random()-0.5)*300;sPos[i*3+1]=Math.random()*100;sPos[i*3+2]=(Math.random()-0.5)*300;
+  sVel.push({vx:(Math.random()-0.5)*0.06,vy:-0.12-Math.random()*0.15,vz:(Math.random()-0.5)*0.06});
+}
+snowGeo.setAttribute('position',new THREE.BufferAttribute(sPos,3));
+const snowPts=new THREE.Points(snowGeo,new THREE.PointsMaterial({color:0xffffff,size:0.28,transparent:true,opacity:0.8,sizeAttenuation:true}));
+scene.add(snowPts);
+
+// Sky
+const skyG=new THREE.SphereGeometry(500,16,8);
+const skyM=new THREE.ShaderMaterial({side:THREE.BackSide,
+  uniforms:{t:{value:new THREE.Color(0x0a1a3a)},b:{value:new THREE.Color(0x4a7a9b)}},
+  vertexShader:`varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`uniform vec3 t,b;varying vec3 vP;void main(){float h=normalize(vP).y;gl_FragColor=vec4(mix(b,t,clamp(h,0.,1.)),1.);}`
+});
+scene.add(new THREE.Mesh(skyG,skyM));
+
+// Moon + stars
+const moon=new THREE.Mesh(new THREE.SphereGeometry(8,12,12),new THREE.MeshBasicMaterial({color:0xeef5ff}));
+moon.position.set(-150,180,-300);scene.add(moon);
+const sSt=[];for(let i=0;i<1500;i++){const r=400,a=Math.random()*Math.PI*2,b=Math.random()*Math.PI*0.5;sSt.push(r*Math.sin(b)*Math.cos(a),r*Math.cos(b)+50,r*Math.sin(b)*Math.sin(a));}
+const starGeo=new THREE.BufferGeometry();starGeo.setAttribute('position',new THREE.Float32BufferAttribute(sSt,3));
+scene.add(new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xffffff,size:0.8,transparent:true,opacity:0.8})));
+
+// Lighting
+scene.add(new THREE.AmbientLight(0x1a2a4a,1.8));
+const moonL=new THREE.DirectionalLight(0x8ab4d4,1.3);
+moonL.position.set(-150,180,-300);moonL.castShadow=true;
+moonL.shadow.mapSize.width=moonL.shadow.mapSize.height=1024;
+moonL.shadow.camera.left=-200;moonL.shadow.camera.right=200;
+moonL.shadow.camera.top=200;moonL.shadow.camera.bottom=-200;
+moonL.shadow.camera.far=700;
+scene.add(moonL);
+scene.add(new THREE.DirectionalLight(0x2244aa,0.6));
+</script>
+
+<script>
+// ═══════════════ SNIPER SYSTEM ═══════════════
+let sniperShots=[], laserWarnings=[];
+let sniperTimer=0, nextSniperTime=3000;
+
+function scheduleSniper(){
+  nextSniperTime=(2+Math.random()*3)*1000;
+  sniperTimer=Date.now()+nextSniperTime;
+}
+
+function fireSniper(){
+  if(!gameRunning||gamePaused) return;
+  // Pick random mountain direction
+  const angle=Math.random()*Math.PI*2;
+  const dist=80+Math.random()*60;
+  const fromX=P.x+Math.cos(angle)*dist;
+  const fromZ=P.z+Math.sin(angle)*dist;
+  const fromY=getH(fromX,fromZ)+20;
+  // Show laser warning for 1 second
+  const warnLine=new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(fromX,fromY,fromZ),
+      new THREE.Vector3(P.x,P.y+1.5,P.z)
+    ]),
+    new THREE.LineBasicMaterial({color:0xff0000,transparent:true,opacity:0.8})
+  );
+  scene.add(warnLine);
+  document.getElementById('warn').classList.add('active');
+  laserWarnings.push(warnLine);
+  // After 1s fire actual shot
+  setTimeout(()=>{
+    scene.remove(warnLine);
+    laserWarnings=laserWarnings.filter(l=>l!==warnLine);
+    document.getElementById('warn').classList.remove('active');
+    if(!gameRunning||gamePaused) return;
+    const dir=new THREE.Vector3(P.x-fromX,(P.y+1.5)-fromY,P.z-fromZ).normalize();
+    const shot={
+      mesh:new THREE.Mesh(new THREE.SphereGeometry(0.25,6,6),new THREE.MeshBasicMaterial({color:0xff2200})),
+      glow:new THREE.Mesh(new THREE.SphereGeometry(0.5,6,6),new THREE.MeshBasicMaterial({color:0xff6600,transparent:true,opacity:0.4})),
+      x:fromX,y:fromY,z:fromZ,
+      vx:dir.x*0.8,vy:dir.y*0.8,vz:dir.z*0.8,
+      life:120
+    };
+    shot.mesh.position.set(fromX,fromY,fromZ);
+    shot.glow.position.set(fromX,fromY,fromZ);
+    // Trail light
+    const sl=new THREE.PointLight(0xff4400,2,6);
+    shot.mesh.add(sl);
+    scene.add(shot.mesh);scene.add(shot.glow);
+    sniperShots.push(shot);
+  },1000);
+  scheduleSniper();
+}
+
+// ═══════════════ INPUT ═══════════════
+const keys={};
+document.addEventListener('keydown',e=>{
+  keys[e.key]=true;
+  if(e.key==='Escape'){if(gameRunning)togglePause();}
+  if(e.key===' ')e.preventDefault();
+});
+document.addEventListener('keyup',e=>keys[e.key]=false);
+
+// Mouse look
+let mouseX=0,mouseY=0,pointerLocked=false;
+renderer.domElement.addEventListener('click',()=>{
+  if(!gameRunning)return;
+  renderer.domElement.requestPointerLock();
+});
+document.addEventListener('pointerlockchange',()=>{
+  pointerLocked=document.pointerLockElement===renderer.domElement;
+});
+document.addEventListener('mousemove',e=>{
+  if(!pointerLocked||!gameRunning||gamePaused)return;
+  P.camYaw-=e.movementX*0.003;
+  P.camPitch=Math.max(0.1,Math.min(1.1,P.camPitch+e.movementY*0.003));
+});
+
+// ═══════════════ GAME STATE ═══════════════
+let gameRunning=false,gamePaused=false;
+let startTime=0,elapsedTime=0;
+let animId;
+
+function startGame(){
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('gameover-screen').style.display='none';
+  document.getElementById('victory-screen').style.display='none';
+  gameRunning=true;gamePaused=false;
+  P.x=0;P.y=8;P.z=0;P.vx=0;P.vy=0;P.vz=0;P.hp=100;P.stamina=100;P.angle=0;P.camYaw=0;P.camPitch=0.3;
+  explorer.position.set(P.x,P.y,P.z);
+  spawnDiamonds();
+  sniperShots.forEach(s=>{scene.remove(s.mesh);scene.remove(s.glow);});
+  sniperShots=[];
+  laserWarnings.forEach(l=>scene.remove(l));laserWarnings=[];
+  startTime=Date.now();
+  scheduleSniper();
+  renderer.domElement.requestPointerLock();
+  updateHUD();
+  if(!animId) loop();
+}
+
+function restartGame(){startGame();}
+
+function togglePause(){
+  gamePaused=!gamePaused;
+  document.getElementById('pause-screen').style.display=gamePaused?'flex':'none';
+  if(!gamePaused)renderer.domElement.requestPointerLock();
+}
+
+function resumeGame(){togglePause();}
+
+function gameOver(msg){
+  gameRunning=false;
+  document.exitPointerLock();
+  document.getElementById('gameover-screen').style.display='flex';
+  document.getElementById('go-msg').textContent=msg;
+  document.getElementById('go-stats').textContent=`Diamonds: ${collectedCount}/5 | Time: ${formatTime(elapsedTime)}`;
+}
+
+function victory(){
+  gameRunning=false;
+  document.exitPointerLock();
+  document.getElementById('victory-screen').style.display='flex';
+  document.getElementById('win-time').textContent=`⏱ Time: ${formatTime(elapsedTime)}`;
+}
+
+function formatTime(ms){const s=Math.floor(ms/1000);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}
+</script>
+
+<script>
+// ═══════════════ HUD UPDATE ═══════════════
+function updateHUD(){
+  document.getElementById('hp-bar').style.width=(P.hp/P.maxHp*100)+'%';
+  document.getElementById('hp-bar').style.background=P.hp>50?'linear-gradient(90deg,#00ff88,#00aa44)':P.hp>25?'linear-gradient(90deg,#ffaa00,#ff6600)':'linear-gradient(90deg,#ff4444,#cc0000)';
+  document.getElementById('hp-val').textContent=Math.ceil(P.hp);
+  document.getElementById('diamond-val').textContent='💎 '+collectedCount+' / 5';
+  document.getElementById('sp-bar').style.width=(P.stamina/P.staminaMax*100)+'%';
+  const dots=Math.ceil(P.stamina/P.staminaMax*5);
+  document.getElementById('sp-val').textContent='●'.repeat(dots)+'○'.repeat(5-dots);
+  if(gameRunning&&!gamePaused) elapsedTime=Date.now()-startTime;
+  document.getElementById('timer-val').textContent='⏱ '+formatTime(elapsedTime);
+}
+
+// ═══════════════ MAIN LOOP ═══════════════
+function loop(){
+  animId=requestAnimationFrame(loop);
+  if(!gameRunning||gamePaused){renderer.render(scene,camera);return;}
+  update();render3D();
+}
+
+function update(){
+  const t=Date.now()*0.001;
+
+  // ── Sniper ──
+  if(Date.now()>sniperTimer) fireSniper();
+
+  // ── Player movement ──
+  P.sprinting=keys['Shift']&&P.stamina>0;
+  const spd=P.speed*(P.sprinting?P.sprintMult:1);
+  const moving=keys['w']||keys['s']||keys['a']||keys['d']||keys['ArrowUp']||keys['ArrowDown']||keys['ArrowLeft']||keys['ArrowRight'];
+
+  // Stamina
+  if(P.sprinting&&moving){P.stamina=Math.max(0,P.stamina-0.6);}
+  else{P.stamina=Math.min(P.staminaMax,P.stamina+0.3);}
+
+  if(moving){
+    let mx=0,mz=0;
+    if(keys['w']||keys['ArrowUp'])   {mx+=Math.sin(P.camYaw);mz+=Math.cos(P.camYaw);}
+    if(keys['s']||keys['ArrowDown']) {mx-=Math.sin(P.camYaw);mz-=Math.cos(P.camYaw);}
+    if(keys['a']||keys['ArrowLeft']) {mx+=Math.sin(P.camYaw-Math.PI/2);mz+=Math.cos(P.camYaw-Math.PI/2);}
+    if(keys['d']||keys['ArrowRight']){mx+=Math.sin(P.camYaw+Math.PI/2);mz+=Math.cos(P.camYaw+Math.PI/2);}
+    const len=Math.sqrt(mx*mx+mz*mz)||1;
+    P.vx=mx/len*spd; P.vz=mz/len*spd;
+    P.angle=Math.atan2(mx/len,mz/len);
+    P.walkTime+=P.sprinting?0.22:0.13;
+  } else {P.vx*=0.8;P.vz*=0.8;}
+
+  // Jump
+  if((keys[' ']||keys['Space'])&&P.onGround){P.vy=0.28;P.onGround=false;}
+
+  // Gravity
+  P.vy-=0.018;
+  P.x+=P.vx; P.z+=P.vz; P.y+=P.vy;
+
+  // Terrain collision
+  const groundH=getH(P.x,P.z)+1.0;
+  if(P.y<=groundH){P.y=groundH;P.vy=0;P.onGround=true;}
+  else{P.onGround=false;}
+
+  // World bounds
+  P.x=Math.max(-140,Math.min(140,P.x));
+  P.z=Math.max(-140,Math.min(140,P.z));
+
+  // ── Update explorer mesh ──
+  explorer.position.set(P.x,P.y-1.0,P.z);
+  explorer.rotation.y=P.angle;
+
+  // Walk animation
+  const lL=explorer.userData.legL,lR=explorer.userData.legR;
+  const aL=explorer.userData.armL,aR=explorer.userData.armR;
+  if(moving){
+    lL.position.y=0.42+Math.sin(P.walkTime)*0.15;
+    lR.position.y=0.42-Math.sin(P.walkTime)*0.15;
+    aL.rotation.x= Math.sin(P.walkTime)*0.4;
+    aR.rotation.x=-Math.sin(P.walkTime)*0.4;
+  } else {
+    lL.position.y=lR.position.y=0.42;
+    aL.rotation.x=aR.rotation.x=0;
+  }
+  // Jump squash
+  if(!P.onGround){explorer.scale.y=0.92;explorer.scale.x=explorer.scale.z=1.05;}
+  else{explorer.scale.set(1,1,1);}
+
+  // ── Diamonds ──
+  diamonds.forEach(d=>{
+    if(d.collected)return;
+    d.t+=0.03;
+    d.mesh.position.y=d.h+1.5+Math.sin(d.t)*0.3;
+    d.mesh.rotation.y+=0.02;
+    const dx=d.x-P.x,dz=d.z-P.z;
+    if(Math.sqrt(dx*dx+dz*dz)<2.2){
+      d.collected=true;scene.remove(d.mesh);collectedCount++;
+      // Flash
+      const cf=document.getElementById('collect-flash');
+      cf.style.opacity=1;setTimeout(()=>cf.style.opacity=0,300);
+      if(collectedCount>=5){setTimeout(()=>victory(),500);}
+    }
+  });
+
+  // ── Sniper shots ──
+  for(let i=sniperShots.length-1;i>=0;i--){
+    const s=sniperShots[i];
+    s.x+=s.vx;s.y+=s.vy;s.z+=s.vz;
+    s.mesh.position.set(s.x,s.y,s.z);
+    s.glow.position.set(s.x,s.y,s.z);
+    s.life--;
+    if(s.life<=0||s.y<getH(s.x,s.z)){
+      scene.remove(s.mesh);scene.remove(s.glow);sniperShots.splice(i,1);continue;
+    }
+    // Hit player
+    const hd=Math.sqrt((s.x-P.x)**2+(s.y-P.y)**2+(s.z-P.z)**2);
+    if(hd<1.8){
+      scene.remove(s.mesh);scene.remove(s.glow);sniperShots.splice(i,1);
+      P.hp-=34;
+      const hf=document.getElementById('hit-flash');
+      hf.style.opacity=1;setTimeout(()=>hf.style.opacity=0,400);
+      if(P.hp<=0){gameOver('You were hit by a sniper shot!');return;}
+    }
+  }
+
+  // ── Snow particles ──
+  const sp=snowPts.geometry.attributes.position;
+  const wind=Math.sin(t*0.3)*0.03;
+  for(let i=0;i<SNOW;i++){
+    sp.array[i*3]  +=sVel[i].vx+wind;
+    sp.array[i*3+1]+=sVel[i].vy;
+    sp.array[i*3+2]+=sVel[i].vz;
+    if(sp.array[i*3+1]<-2){
+      sp.array[i*3]  =P.x+(Math.random()-0.5)*200;
+      sp.array[i*3+1]=P.y+80;
+      sp.array[i*3+2]=P.z+(Math.random()-0.5)*200;
+    }
+  }
+  sp.needsUpdate=true;
+
+  updateHUD();
+}
+
+function render3D(){
+  // ── Third Person Camera ──
+  const camDist=P.sprinting?8:6;
+  const camH=2.5+P.camPitch*3;
+  const cx=P.x-Math.sin(P.camYaw)*camDist*Math.cos(P.camPitch);
+  const cy=P.y+camH;
+  const cz=P.z-Math.cos(P.camYaw)*camDist*Math.cos(P.camPitch);
+  camera.position.lerp(new THREE.Vector3(cx,cy,cz),0.15);
+  camera.lookAt(P.x,P.y+1.5,P.z);
+  renderer.render(scene,camera);
+}
+
+// Initial render
+renderer.render(scene,camera);
+</script>
+</body>
+</html>
