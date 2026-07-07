@@ -78,8 +78,7 @@ https://nimra1692005.github.io/snow-game/
 
 ## 👩‍💻 Developer
 
-**Nimra Irshad** — AI & Data Science Student, LCWU Lahore
+** AMINA LIAQAT ** — AI & software engineer, LCWU Lahore
 
-- 🐙 GitHub: [@Nimra1692005](https://github.com/Nimra1692005)
-- 💼 LinkedIn: [nimra-irshad](https://linkedin.com/in/nimra-irshad)
-- 📧 Email: nimra1692005@gmail.com
+- 💼 LinkedIn: https://www.linkedin.com/in/amina-liaqat-6549473a2?utm_source=share_via&utm_content=profile&utm_medium=member_android
+- 📧 Email: aminaliaqatalibhatti@gmail.com
