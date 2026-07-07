@@ -6,7 +6,7 @@ No installation required — just open in any browser!
 ---
 
 ## 🎮 Play Online
-👉 **[Click Here to Play](https://nimra1692005.github.io/snow-game/)**
+👉 **[Click Here to Play]https://aminaliaqatalibhatti-del.github.io/snow-game/**
 
 ```
 https://nimra1692005.github.io/snow-game/
